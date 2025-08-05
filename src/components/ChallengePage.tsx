@@ -13,18 +13,16 @@ import { useAuth } from "../contexts/AuthContext";
 
 interface Challenge {
   _id: string;
+  title?: string;
   text: string;
-  hints: string[];
   pointValue: number;
-  penalties: {
-    hint: number;
-    skip: number;
-  };
-}
-
-interface HintState {
-  unlocked: boolean;
-  used: boolean;
+  category?: string;
+  difficulty?: string;
+  files?: any[];
+  unlockedHints: string[];
+  hintsUsed: number;
+  currentPointPercentage: number;
+  totalHints: number;
 }
 
 const ChallengePage: React.FC = () => {
@@ -36,7 +34,6 @@ const ChallengePage: React.FC = () => {
     null
   );
   const [answer, setAnswer] = useState("");
-  const [hints, setHints] = useState<HintState[]>([]);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | "info";
@@ -72,11 +69,13 @@ const ChallengePage: React.FC = () => {
         // Handle the nested challenge structure from the API response
         const challenge = data.success ? data.challenge : data;
         setCurrentChallenge(challenge);
-        setHints(
-          challenge.hints?.map(() => ({ unlocked: false, used: false })) || []
-        );
         setAnswer("");
         setFeedback(null);
+
+        // If the challenge has progress, load it
+        if (challenge._id) {
+          await loadChallengeProgress(challenge._id);
+        }
       } else if (response.status === 404) {
         // No more challenges
         navigate("/winner");
@@ -90,6 +89,40 @@ const ChallengePage: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadChallengeProgress = async (challengeId: string) => {
+    try {
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_BASE_URL
+        }/api/challenges/${challengeId}/progress`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("ctf_token")}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.progress) {
+          const progress = data.progress;
+          setCurrentChallenge((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  hintsUsed: progress.hintsUsed,
+                  currentPointPercentage: progress.currentPointPercentage,
+                  unlockedHints: progress.unlockedHints,
+                }
+              : null
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load challenge progress:", error);
     }
   };
 
@@ -119,8 +152,12 @@ const ChallengePage: React.FC = () => {
       if (result.correct) {
         setFeedback({
           type: "success",
-          message: `Correct! +${currentChallenge.pointValue} points ${
-            result.deduction ? `(${result.deduction} penalty applied)` : ""
+          message: `Correct! +${
+            result.pointsEarned || currentChallenge.pointValue
+          } points ${
+            result.pointsEarned < currentChallenge.pointValue
+              ? `(${result.pointPercentage}% of base points)`
+              : ""
           }`,
         });
 
@@ -146,7 +183,7 @@ const ChallengePage: React.FC = () => {
   };
 
   const handleRequestHint = async (hintIndex: number) => {
-    if (!currentChallenge || hints[hintIndex].unlocked) return;
+    if (!currentChallenge || hintIndex !== currentChallenge.hintsUsed) return;
 
     try {
       const response = await fetch(
@@ -160,7 +197,6 @@ const ChallengePage: React.FC = () => {
             Authorization: `Bearer ${localStorage.getItem("ctf_token")}`,
           },
           body: JSON.stringify({
-            confirm: "confirm",
             hintIndex,
           }),
         }
@@ -169,23 +205,37 @@ const ChallengePage: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
 
-        setHints((prev) =>
-          prev.map((hint, index) =>
-            index === hintIndex ? { ...hint, unlocked: true, used: true } : hint
-          )
+        // Update the challenge with the new hint and point percentage
+        setCurrentChallenge((prev) =>
+          prev
+            ? {
+                ...prev,
+                unlockedHints: [...prev.unlockedHints, result.hint],
+                hintsUsed: result.hintsUsed,
+                currentPointPercentage: result.currentPointPercentage,
+              }
+            : null
         );
 
         setFeedback({
           type: "info",
-          message: `Hint unlocked! -${currentChallenge.penalties.hint} points`,
+          message:
+            result.message ||
+            `Hint ${hintIndex + 1} unlocked! Points reduced to ${
+              result.currentPointPercentage
+            }%`,
         });
       } else {
-        throw new Error("Failed to unlock hint");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to unlock hint");
       }
     } catch (error) {
       setFeedback({
         type: "error",
-        message: "Failed to unlock hint. Please try again.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to unlock hint. Please try again.",
       });
     } finally {
       setConfirmHint(null);
@@ -261,11 +311,16 @@ const ChallengePage: React.FC = () => {
               <div>
                 <h1 className="text-3xl font-bold text-cyan-400">CHALLENGE</h1>
                 <p className="text-gray-400 font-mono">
-                  Worth {currentChallenge.pointValue} points
+                  Base: {currentChallenge.pointValue} → Current:{" "}
+                  {Math.round(
+                    (currentChallenge.pointValue *
+                      currentChallenge.currentPointPercentage) /
+                      100
+                  )}{" "}
+                  points ({currentChallenge.currentPointPercentage}%)
                 </p>
               </div>
-            </div>
-
+            </div>{" "}
             <div className="text-right">
               <div className="text-2xl font-mono font-bold text-green-400">
                 {user?.score || 0}
@@ -339,70 +394,84 @@ const ChallengePage: React.FC = () => {
         <div className="cyber-card p-8 mb-6">
           <h3 className="text-xl font-bold text-pink-400 mb-6 flex items-center">
             <HelpCircle className="w-6 h-6 mr-2" />
-            INTELLIGENCE SUPPORT
+            INTELLIGENCE SUPPORT ({currentChallenge.hintsUsed}/
+            {currentChallenge.totalHints} hints used)
           </h3>
 
           <div className="grid gap-4">
-            {currentChallenge?.hints?.map((hint, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setConfirmHint(index)}
-                    disabled={hints[index].unlocked || timeRemaining <= 0}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded border font-mono text-sm ${
-                      hints[index].unlocked
-                        ? "bg-green-900/30 border-green-500 text-green-400 cursor-default"
-                        : "bg-gray-800 border-gray-600 text-gray-400 hover:border-yellow-400 hover:text-yellow-400"
-                    }`}
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                    <span>
-                      HINT {index + 1}{" "}
-                      {!hints[index].unlocked &&
-                        `(-${currentChallenge.penalties.hint} pts)`}
-                    </span>
-                  </button>
-                </div>
+            {Array.from({ length: currentChallenge.totalHints }, (_, index) => {
+              const isUnlocked = index < currentChallenge.hintsUsed;
+              const isNextHint = index === currentChallenge.hintsUsed;
+              const pointReduction = 100 - 25 * (index + 1); // 75%, 50%, 25%
 
-                {hints[index].unlocked && (
-                  <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded">
-                    <p className="text-yellow-300 font-mono text-sm">{hint}</p>
+              return (
+                <div key={index} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setConfirmHint(index)}
+                      disabled={!isNextHint || timeRemaining <= 0}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded border font-mono text-sm ${
+                        isUnlocked
+                          ? "bg-green-900/30 border-green-500 text-green-400 cursor-default"
+                          : isNextHint
+                          ? "bg-gray-800 border-gray-600 text-gray-400 hover:border-yellow-400 hover:text-yellow-400"
+                          : "bg-gray-900/50 border-gray-700 text-gray-600 cursor-not-allowed"
+                      }`}
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      <span>
+                        HINT {index + 1}{" "}
+                        {isUnlocked
+                          ? "✓"
+                          : isNextHint
+                          ? `(Reduces to ${pointReduction}%)`
+                          : `(Locked)`}
+                      </span>
+                    </button>
                   </div>
-                )}
 
-                {/* Hint Confirmation Modal */}
-                {confirmHint === index && (
-                  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-                    <div className="cyber-card p-6 max-w-md">
-                      <h4 className="text-lg font-bold text-yellow-400 mb-4">
-                        CONFIRM HINT REQUEST
-                      </h4>
-                      <p className="text-gray-300 mb-4">
-                        This will cost you{" "}
-                        <span className="text-red-400 font-bold">
-                          {currentChallenge.penalties.hint} points
-                        </span>
-                        . Continue?
+                  {isUnlocked && currentChallenge.unlockedHints[index] && (
+                    <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded">
+                      <p className="text-yellow-300 font-mono text-sm">
+                        {currentChallenge.unlockedHints[index]}
                       </p>
-                      <div className="flex space-x-4">
-                        <button
-                          onClick={() => handleRequestHint(index)}
-                          className="cyber-btn cyber-btn-primary flex-1"
-                        >
-                          CONFIRM
-                        </button>
-                        <button
-                          onClick={() => setConfirmHint(null)}
-                          className="cyber-btn cyber-btn-secondary flex-1"
-                        >
-                          CANCEL
-                        </button>
+                    </div>
+                  )}
+
+                  {/* Hint Confirmation Modal */}
+                  {confirmHint === index && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                      <div className="cyber-card p-6 max-w-md">
+                        <h4 className="text-lg font-bold text-yellow-400 mb-4">
+                          CONFIRM HINT REQUEST
+                        </h4>
+                        <p className="text-gray-300 mb-4">
+                          This will reduce your potential points to{" "}
+                          <span className="text-red-400 font-bold">
+                            {pointReduction}%
+                          </span>{" "}
+                          of the original value. Continue?
+                        </p>
+                        <div className="flex space-x-4">
+                          <button
+                            onClick={() => handleRequestHint(index)}
+                            className="cyber-btn cyber-btn-primary flex-1"
+                          >
+                            CONFIRM
+                          </button>
+                          <button
+                            onClick={() => setConfirmHint(null)}
+                            className="cyber-btn cyber-btn-secondary flex-1"
+                          >
+                            CANCEL
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

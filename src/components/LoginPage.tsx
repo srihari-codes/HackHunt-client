@@ -112,7 +112,7 @@ const LoginPage: React.FC = () => {
           <div className="space-y-3 pt-4 border-t border-gray-700">
             <div className="flex items-center space-x-3 text-sm text-gray-400">
               <Zap className="w-4 h-4 text-yellow-400" />
-              <span>Live challenges and leaderboard</span>
+              <span>Live challenges and real-time updates</span>
             </div>
             <div className="flex items-center space-x-3 text-sm text-gray-400">
               <Shield className="w-4 h-4 text-green-400" />

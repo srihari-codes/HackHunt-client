@@ -20,7 +20,6 @@ interface EventContextType {
   timeRemaining: number;
   isEventActive: boolean;
   isEventStarted: boolean;
-  leaderboard: any[];
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
@@ -36,19 +35,15 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
     paused: false,
     currentTime: new Date(),
   });
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   useEffect(() => {
-    // Initialize polling for timer and leaderboard updates
+    // Initialize polling for timer updates
     const API_BASE_URL =
       import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
-    // Get polling intervals from environment variables
+    // Get polling interval from environment variables
     const TIMER_POLL_INTERVAL = parseInt(
       import.meta.env.VITE_TIMER_POLL_INTERVAL || "2000"
-    );
-    const LEADERBOARD_POLL_INTERVAL = parseInt(
-      import.meta.env.VITE_LEADERBOARD_POLL_INTERVAL || "5000"
     );
 
     const fetchTimerData = async () => {
@@ -75,33 +70,15 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
       }
     };
 
-    const fetchLeaderboard = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/leaderboard`);
-        if (response.ok) {
-          const leaderboardData = await response.json();
-          setLeaderboard(leaderboardData);
-        }
-      } catch (error) {
-        console.error("Failed to fetch leaderboard:", error);
-      }
-    };
-
     // Initial fetch
     fetchTimerData();
-    fetchLeaderboard();
 
-    // Set up polling intervals using environment variables
+    // Set up polling interval using environment variable
     const timerInterval = setInterval(fetchTimerData, TIMER_POLL_INTERVAL);
-    const leaderboardInterval = setInterval(
-      fetchLeaderboard,
-      LEADERBOARD_POLL_INTERVAL
-    );
 
     // Cleanup on unmount
     return () => {
       clearInterval(timerInterval);
-      clearInterval(leaderboardInterval);
     };
   }, []);
 
@@ -135,7 +112,6 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
     timeRemaining,
     isEventActive,
     isEventStarted,
-    leaderboard,
   };
 
   return (
