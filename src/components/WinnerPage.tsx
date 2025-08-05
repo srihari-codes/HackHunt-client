@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Trophy, Crown, Medal, Users, Clock, Zap } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useEvent } from '../contexts/EventContext';
+import React, { useState, useEffect } from "react";
+import { Trophy, Crown, Medal, Users, Clock, Zap } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { useEvent } from "../contexts/EventContext";
 
 interface LeaderboardEntry {
   _id: string;
@@ -15,7 +15,9 @@ interface LeaderboardEntry {
 const WinnerPage: React.FC = () => {
   const { user } = useAuth();
   const { leaderboard: liveLeaderboard } = useEvent();
-  const [finalLeaderboard, setFinalLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [finalLeaderboard, setFinalLeaderboard] = useState<LeaderboardEntry[]>(
+    []
+  );
   const [showResults, setShowResults] = useState(false);
   const [userRank, setUserRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,37 +25,41 @@ const WinnerPage: React.FC = () => {
   useEffect(() => {
     // Check if results have been officially released
     checkResultsStatus();
-    
+
     // Set up polling for result announcement
     const interval = setInterval(checkResultsStatus, 5000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
   const checkResultsStatus = async () => {
     try {
-      const response = await fetch('/api/results/status', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('ctf_token')}`
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/results/status`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("ctf_token")}`,
+          },
         }
-      });
+      );
 
       if (response.ok) {
         const data = await response.json();
         setShowResults(data.resultsReleased);
-        
+
         if (data.resultsReleased && data.leaderboard) {
           setFinalLeaderboard(data.leaderboard);
-          
+
           // Find user's rank
-          const rank = data.leaderboard.findIndex((entry: LeaderboardEntry) => 
-            entry._id === user?._id
-          ) + 1;
+          const rank =
+            data.leaderboard.findIndex(
+              (entry: LeaderboardEntry) => entry._id === user?._id
+            ) + 1;
           setUserRank(rank || null);
         }
       }
     } catch (error) {
-      console.error('Failed to check results status:', error);
+      console.error("Failed to check results status:", error);
     } finally {
       setLoading(false);
     }
@@ -90,13 +96,13 @@ const WinnerPage: React.FC = () => {
   const getRankColor = (rank: number) => {
     switch (rank) {
       case 1:
-        return 'text-yellow-400 bg-yellow-400/10 border-yellow-400';
+        return "text-yellow-400 bg-yellow-400/10 border-yellow-400";
       case 2:
-        return 'text-gray-300 bg-gray-300/10 border-gray-300';
+        return "text-gray-300 bg-gray-300/10 border-gray-300";
       case 3:
-        return 'text-orange-400 bg-orange-400/10 border-orange-400';
+        return "text-orange-400 bg-orange-400/10 border-orange-400";
       default:
-        return 'text-gray-400 bg-gray-800/30 border-gray-600';
+        return "text-gray-400 bg-gray-800/30 border-gray-600";
     }
   };
 
@@ -130,7 +136,9 @@ const WinnerPage: React.FC = () => {
 
               <div className="space-y-6">
                 <div className="bg-gray-900/50 p-6 rounded border border-cyan-500/30">
-                  <h3 className="text-lg font-bold text-green-400 mb-4">Your Performance</h3>
+                  <h3 className="text-lg font-bold text-green-400 mb-4">
+                    Your Performance
+                  </h3>
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div>
                       <div className="text-3xl font-mono font-bold text-cyan-400">
@@ -179,8 +187,12 @@ const WinnerPage: React.FC = () => {
                       Your Final Ranking
                     </span>
                   </div>
-                  
-                  <div className={`inline-flex items-center px-6 py-3 rounded-full border ${getRankColor(userRank)} font-mono text-2xl font-bold`}>
+
+                  <div
+                    className={`inline-flex items-center px-6 py-3 rounded-full border ${getRankColor(
+                      userRank
+                    )} font-mono text-2xl font-bold`}
+                  >
                     #{userRank} of {finalLeaderboard.length}
                   </div>
 
@@ -193,16 +205,23 @@ const WinnerPage: React.FC = () => {
                     </div>
                     <div>
                       <div className="text-2xl font-mono font-bold text-pink-400">
-                        {finalLeaderboard.find(entry => entry._id === user?._id)?.challengesCompleted || 0}
+                        {finalLeaderboard.find(
+                          (entry) => entry._id === user?._id
+                        )?.challengesCompleted || 0}
                       </div>
                       <div className="text-sm text-gray-400">Solved</div>
                     </div>
                     <div>
                       <div className="text-2xl font-mono font-bold text-cyan-400">
-                        {finalLeaderboard.find(entry => entry._id === user?._id)?.completionTime 
-                          ? formatTime(finalLeaderboard.find(entry => entry._id === user?._id)!.completionTime!)
-                          : 'N/A'
-                        }
+                        {finalLeaderboard.find(
+                          (entry) => entry._id === user?._id
+                        )?.completionTime
+                          ? formatTime(
+                              finalLeaderboard.find(
+                                (entry) => entry._id === user?._id
+                              )!.completionTime!
+                            )
+                          : "N/A"}
                       </div>
                       <div className="text-sm text-gray-400">Time</div>
                     </div>
@@ -228,8 +247,8 @@ const WinnerPage: React.FC = () => {
                   <div
                     key={entry._id}
                     className={`flex items-center justify-between p-4 rounded border ${
-                      entry._id === user?._id 
-                        ? 'bg-cyan-900/30 border-cyan-500' 
+                      entry._id === user?._id
+                        ? "bg-cyan-900/30 border-cyan-500"
                         : getRankColor(index + 1)
                     }`}
                   >
@@ -237,7 +256,7 @@ const WinnerPage: React.FC = () => {
                       <div className="flex items-center justify-center w-12">
                         {getRankIcon(index + 1)}
                       </div>
-                      
+
                       <div>
                         <div className="flex items-center space-x-3">
                           <span className="text-lg font-bold text-white">
@@ -252,7 +271,8 @@ const WinnerPage: React.FC = () => {
                         {index < 3 && (
                           <div className="text-sm text-gray-400 font-mono mt-1">
                             {entry.challengesCompleted} challenges completed
-                            {entry.completionTime && ` in ${formatTime(entry.completionTime)}`}
+                            {entry.completionTime &&
+                              ` in ${formatTime(entry.completionTime)}`}
                           </div>
                         )}
                       </div>
@@ -276,11 +296,11 @@ const WinnerPage: React.FC = () => {
                 CYBER CHALLENGE COMPLETE
               </h3>
               <p className="text-gray-400 max-w-2xl mx-auto">
-                Thank you for participating in this elite cybersecurity challenge. 
-                Your skills have been tested and your dedication recognized. 
-                The future of digital security is in capable hands.
+                Thank you for participating in this elite cybersecurity
+                challenge. Your skills have been tested and your dedication
+                recognized. The future of digital security is in capable hands.
               </p>
-              
+
               <div className="mt-6 text-sm text-gray-500 font-mono">
                 Event concluded • Results are final
               </div>

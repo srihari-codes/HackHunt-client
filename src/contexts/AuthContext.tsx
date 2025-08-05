@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
 interface User {
   _id: string;
@@ -25,7 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -40,7 +46,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Check for existing auth token
-    const token = localStorage.getItem('ctf_token');
+    const token = localStorage.getItem("ctf_token");
     if (token) {
       // Verify token with backend
       verifyToken(token);
@@ -51,21 +57,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const verifyToken = async (token: string) => {
     try {
-      const response = await fetch('/api/auth/verify', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/verify`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      });
-      
+      );
+
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
       } else {
-        localStorage.removeItem('ctf_token');
+        localStorage.removeItem("ctf_token");
       }
     } catch (error) {
-      console.error('Token verification failed:', error);
-      localStorage.removeItem('ctf_token');
+      console.error("Token verification failed:", error);
+      localStorage.removeItem("ctf_token");
     } finally {
       setLoading(false);
     }
@@ -73,31 +82,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credential: string): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ credential }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/google`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ credential }),
+        }
+      );
 
       if (response.ok) {
         const { token, user: userData } = await response.json();
-        localStorage.setItem('ctf_token', token);
+        localStorage.setItem("ctf_token", token);
         setUser(userData);
         return true;
       } else {
         const error = await response.json();
-        throw new Error(error.message || 'Authentication failed');
+        throw new Error(error.message || "Authentication failed");
       }
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error("Login failed:", error);
       return false;
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('ctf_token');
+    localStorage.removeItem("ctf_token");
     setUser(null);
   };
 

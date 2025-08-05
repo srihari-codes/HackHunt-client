@@ -32,7 +32,7 @@ A modern cyberpunk-themed Capture The Flag (CTF) platform frontend built with Re
 ### 1. Clone & Install
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/srihari-codes/HackHunt-client.git
 cd client
 npm install
 ```

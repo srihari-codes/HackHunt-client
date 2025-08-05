@@ -11,6 +11,8 @@ interface EventTimer {
   endTime: Date | null;
   paused: boolean;
   currentTime: Date;
+  status?: string;
+  timeRemaining?: number;
 }
 
 interface EventContextType {
@@ -22,14 +24,6 @@ interface EventContextType {
 }
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
-
-export const useEvent = () => {
-  const context = useContext(EventContext);
-  if (context === undefined) {
-    throw new Error("useEvent must be used within an EventProvider");
-  }
-  return context;
-};
 
 interface EventProviderProps {
   children: ReactNode;
@@ -46,15 +40,34 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Initialize polling for timer and leaderboard updates
+    const API_BASE_URL =
+      import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+
+    // Get polling intervals from environment variables
+    const TIMER_POLL_INTERVAL = parseInt(
+      import.meta.env.VITE_TIMER_POLL_INTERVAL || "2000"
+    );
+    const LEADERBOARD_POLL_INTERVAL = parseInt(
+      import.meta.env.VITE_LEADERBOARD_POLL_INTERVAL || "5000"
+    );
+
     const fetchTimerData = async () => {
       try {
-        const response = await fetch("/api/timer");
+        const response = await fetch(`${API_BASE_URL}/api/timer`);
         if (response.ok) {
-          const timerData = await response.json();
+          const data = await response.json();
+          // Handle the nested timer structure from the API response
+          const timerData = data.success ? data.timer : data;
           setTimer((prevTimer) => ({
             ...prevTimer,
-            ...timerData,
+            startTime: timerData.startTime
+              ? new Date(timerData.startTime)
+              : null,
+            endTime: timerData.endTime ? new Date(timerData.endTime) : null,
+            paused: timerData.paused || false,
             currentTime: new Date(),
+            status: timerData.status,
+            timeRemaining: timerData.timeRemaining,
           }));
         }
       } catch (error) {
@@ -64,7 +77,7 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
 
     const fetchLeaderboard = async () => {
       try {
-        const response = await fetch("/api/leaderboard");
+        const response = await fetch(`${API_BASE_URL}/api/leaderboard`);
         if (response.ok) {
           const leaderboardData = await response.json();
           setLeaderboard(leaderboardData);
@@ -78,9 +91,12 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
     fetchTimerData();
     fetchLeaderboard();
 
-    // Set up polling intervals
-    const timerInterval = setInterval(fetchTimerData, 2000); // Poll every 2 seconds
-    const leaderboardInterval = setInterval(fetchLeaderboard, 5000); // Poll every 5 seconds
+    // Set up polling intervals using environment variables
+    const timerInterval = setInterval(fetchTimerData, TIMER_POLL_INTERVAL);
+    const leaderboardInterval = setInterval(
+      fetchLeaderboard,
+      LEADERBOARD_POLL_INTERVAL
+    );
 
     // Cleanup on unmount
     return () => {
@@ -99,7 +115,8 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
 
   const isEventActive = timeRemaining > 0 && !timer.paused;
   const isEventStarted =
-    !!timer.startTime && new Date(timer.startTime as Date) <= timer.currentTime;
+    !!timer.startTime &&
+    new Date(timer.startTime).getTime() <= timer.currentTime.getTime();
 
   // Update current time every second
   useEffect(() => {
@@ -124,4 +141,13 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
   return (
     <EventContext.Provider value={value}>{children}</EventContext.Provider>
   );
+};
+
+// Export the hook separately to avoid Fast Refresh issues
+export const useEvent = () => {
+  const context = useContext(EventContext);
+  if (context === undefined) {
+    throw new Error("useEvent must be used within an EventProvider");
+  }
+  return context;
 };
